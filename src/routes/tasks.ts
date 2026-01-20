@@ -1,9 +1,12 @@
-import { Router, Request, Response } from 'express';
+import { Router, Response } from 'express';
 import { prisma } from '../db';
 import { toDbQuadrant, toFrontendQuadrant, toDbComplexity, toFrontendComplexity } from '../utils/quadrant';
 import { Task, Complexity } from '../generated/prisma/client';
+import { requireAuth, AuthenticatedRequest } from '../middleware/auth';
 
 const router = Router();
+
+router.use(requireAuth);
 
 // Transform DB task to frontend format
 function toFrontendTask(task: Task) {
@@ -23,10 +26,11 @@ function toFrontendTask(task: Task) {
   };
 }
 
-// GET /api/tasks - List all tasks
-router.get('/', async (_req: Request, res: Response) => {
+router.get('/', async (req, res: Response) => {
   try {
+    const { userId } = (req as AuthenticatedRequest).user;
     const tasks = await prisma.task.findMany({
+      where: { userId },
       orderBy: { createdAt: 'desc' },
     });
     res.json(tasks.map(toFrontendTask));
@@ -36,17 +40,17 @@ router.get('/', async (_req: Request, res: Response) => {
   }
 });
 
-// GET /api/tasks/:id - Get single task
-router.get('/:id', async (req: Request<{ id: string }>, res: Response) => {
+router.get('/:id', async (req, res: Response) => {
   try {
+    const { userId } = (req as AuthenticatedRequest<{ id: string }>).user;
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) {
       res.status(400).json({ error: 'Invalid task ID' });
       return;
     }
 
-    const task = await prisma.task.findUnique({
-      where: { id },
+    const task = await prisma.task.findFirst({
+      where: { id, userId },
     });
 
     if (!task) {
@@ -61,9 +65,9 @@ router.get('/:id', async (req: Request<{ id: string }>, res: Response) => {
   }
 });
 
-// POST /api/tasks - Create task
-router.post('/', async (req: Request, res: Response) => {
+router.post('/', async (req, res: Response) => {
   try {
+    const { userId } = (req as AuthenticatedRequest).user;
     const { text, description, deadline, quadrant, complexity, showAfter, recurrence } = req.body;
 
     if (!text || typeof text !== 'string') {
@@ -103,6 +107,7 @@ router.post('/', async (req: Request, res: Response) => {
         complexity: dbComplexity,
         showAfter: showAfter ? new Date(showAfter) : null,
         recurrence: recurrence ?? null,
+        userId,
       },
     });
 
@@ -113,16 +118,16 @@ router.post('/', async (req: Request, res: Response) => {
   }
 });
 
-// PUT /api/tasks/:id - Update task
-router.put('/:id', async (req: Request<{ id: string }>, res: Response) => {
+router.put('/:id', async (req, res: Response) => {
   try {
+    const { userId } = (req as AuthenticatedRequest<{ id: string }>).user;
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) {
       res.status(400).json({ error: 'Invalid task ID' });
       return;
     }
 
-    const existing = await prisma.task.findUnique({ where: { id } });
+    const existing = await prisma.task.findFirst({ where: { id, userId } });
     if (!existing) {
       res.status(404).json({ error: 'Task not found' });
       return;
@@ -203,16 +208,16 @@ router.put('/:id', async (req: Request<{ id: string }>, res: Response) => {
   }
 });
 
-// DELETE /api/tasks/:id - Delete task
-router.delete('/:id', async (req: Request<{ id: string }>, res: Response) => {
+router.delete('/:id', async (req, res: Response) => {
   try {
+    const { userId } = (req as AuthenticatedRequest<{ id: string }>).user;
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) {
       res.status(400).json({ error: 'Invalid task ID' });
       return;
     }
 
-    const existing = await prisma.task.findUnique({ where: { id } });
+    const existing = await prisma.task.findFirst({ where: { id, userId } });
     if (!existing) {
       res.status(404).json({ error: 'Task not found' });
       return;
