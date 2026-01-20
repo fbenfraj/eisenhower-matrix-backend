@@ -2,6 +2,7 @@ import 'dotenv/config';
 import express, { Request, Response } from 'express';
 import cors from 'cors';
 import { prisma } from './db';
+import taskRoutes from './routes/tasks';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -17,6 +18,8 @@ app.get('/api/health', async (_req: Request, res: Response) => {
     res.status(503).json({ status: 'error', database: 'disconnected' });
   }
 });
+
+app.use('/api/tasks', taskRoutes);
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

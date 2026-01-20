@@ -13,3 +13,34 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+enum Quadrant {
+  URGENT_IMPORTANT
+  NOT_URGENT_IMPORTANT
+  URGENT_NOT_IMPORTANT
+  NOT_URGENT_NOT_IMPORTANT
+}
+
+enum Complexity {
+  EASY
+  MEDIUM
+  HARD
+}
+
+model Task {
+  id          Int         @id @default(autoincrement())
+  text        String      @db.VarChar(500)
+  description String?     @db.Text
+  deadline    DateTime?
+  completed   Boolean     @default(false)
+  completedAt DateTime?
+  quadrant    Quadrant
+  complexity  Complexity?
+  showAfter   DateTime?
+  recurrence  Json?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@index([quadrant])
+  @@index([completed])
+}

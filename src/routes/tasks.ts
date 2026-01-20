@@ -1,0 +1,229 @@
+import { Router, Request, Response } from 'express';
+import { prisma } from '../db';
+import { toDbQuadrant, toFrontendQuadrant, toDbComplexity, toFrontendComplexity } from '../utils/quadrant';
+import { Task, Complexity } from '../generated/prisma/client';
+
+const router = Router();
+
+// Transform DB task to frontend format
+function toFrontendTask(task: Task) {
+  return {
+    id: task.id,
+    text: task.text,
+    description: task.description,
+    deadline: task.deadline?.toISOString() ?? null,
+    completed: task.completed,
+    completedAt: task.completedAt?.toISOString() ?? null,
+    quadrant: toFrontendQuadrant(task.quadrant),
+    complexity: task.complexity ? toFrontendComplexity(task.complexity) : null,
+    showAfter: task.showAfter?.toISOString() ?? null,
+    recurrence: task.recurrence,
+    createdAt: task.createdAt.toISOString(),
+    updatedAt: task.updatedAt.toISOString(),
+  };
+}
+
+// GET /api/tasks - List all tasks
+router.get('/', async (_req: Request, res: Response) => {
+  try {
+    const tasks = await prisma.task.findMany({
+      orderBy: { createdAt: 'desc' },
+    });
+    res.json(tasks.map(toFrontendTask));
+  } catch (error) {
+    console.error('Error fetching tasks:', error);
+    res.status(500).json({ error: 'Failed to fetch tasks' });
+  }
+});
+
+// GET /api/tasks/:id - Get single task
+router.get('/:id', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) {
+      res.status(400).json({ error: 'Invalid task ID' });
+      return;
+    }
+
+    const task = await prisma.task.findUnique({
+      where: { id },
+    });
+
+    if (!task) {
+      res.status(404).json({ error: 'Task not found' });
+      return;
+    }
+
+    res.json(toFrontendTask(task));
+  } catch (error) {
+    console.error('Error fetching task:', error);
+    res.status(500).json({ error: 'Failed to fetch task' });
+  }
+});
+
+// POST /api/tasks - Create task
+router.post('/', async (req: Request, res: Response) => {
+  try {
+    const { text, description, deadline, quadrant, complexity, showAfter, recurrence } = req.body;
+
+    if (!text || typeof text !== 'string') {
+      res.status(400).json({ error: 'Text is required' });
+      return;
+    }
+
+    if (!quadrant || typeof quadrant !== 'string') {
+      res.status(400).json({ error: 'Quadrant is required' });
+      return;
+    }
+
+    let dbQuadrant;
+    try {
+      dbQuadrant = toDbQuadrant(quadrant);
+    } catch {
+      res.status(400).json({ error: 'Invalid quadrant value' });
+      return;
+    }
+
+    let dbComplexity: Complexity | undefined;
+    if (complexity) {
+      try {
+        dbComplexity = toDbComplexity(complexity);
+      } catch {
+        res.status(400).json({ error: 'Invalid complexity value' });
+        return;
+      }
+    }
+
+    const task = await prisma.task.create({
+      data: {
+        text,
+        description: description ?? null,
+        deadline: deadline ? new Date(deadline) : null,
+        quadrant: dbQuadrant,
+        complexity: dbComplexity,
+        showAfter: showAfter ? new Date(showAfter) : null,
+        recurrence: recurrence ?? null,
+      },
+    });
+
+    res.status(201).json(toFrontendTask(task));
+  } catch (error) {
+    console.error('Error creating task:', error);
+    res.status(500).json({ error: 'Failed to create task' });
+  }
+});
+
+// PUT /api/tasks/:id - Update task
+router.put('/:id', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) {
+      res.status(400).json({ error: 'Invalid task ID' });
+      return;
+    }
+
+    const existing = await prisma.task.findUnique({ where: { id } });
+    if (!existing) {
+      res.status(404).json({ error: 'Task not found' });
+      return;
+    }
+
+    const { text, description, deadline, completed, completedAt, quadrant, complexity, showAfter, recurrence } = req.body;
+
+    const updateData: Record<string, unknown> = {};
+
+    if (text !== undefined) {
+      if (typeof text !== 'string') {
+        res.status(400).json({ error: 'Text must be a string' });
+        return;
+      }
+      updateData.text = text;
+    }
+
+    if (description !== undefined) {
+      updateData.description = description;
+    }
+
+    if (deadline !== undefined) {
+      updateData.deadline = deadline ? new Date(deadline) : null;
+    }
+
+    if (completed !== undefined) {
+      updateData.completed = completed;
+      if (completed && !existing.completedAt) {
+        updateData.completedAt = new Date();
+      } else if (!completed) {
+        updateData.completedAt = null;
+      }
+    }
+
+    if (completedAt !== undefined) {
+      updateData.completedAt = completedAt ? new Date(completedAt) : null;
+    }
+
+    if (quadrant !== undefined) {
+      try {
+        updateData.quadrant = toDbQuadrant(quadrant);
+      } catch {
+        res.status(400).json({ error: 'Invalid quadrant value' });
+        return;
+      }
+    }
+
+    if (complexity !== undefined) {
+      if (complexity === null) {
+        updateData.complexity = null;
+      } else {
+        try {
+          updateData.complexity = toDbComplexity(complexity);
+        } catch {
+          res.status(400).json({ error: 'Invalid complexity value' });
+          return;
+        }
+      }
+    }
+
+    if (showAfter !== undefined) {
+      updateData.showAfter = showAfter ? new Date(showAfter) : null;
+    }
+
+    if (recurrence !== undefined) {
+      updateData.recurrence = recurrence;
+    }
+
+    const task = await prisma.task.update({
+      where: { id },
+      data: updateData,
+    });
+
+    res.json(toFrontendTask(task));
+  } catch (error) {
+    console.error('Error updating task:', error);
+    res.status(500).json({ error: 'Failed to update task' });
+  }
+});
+
+// DELETE /api/tasks/:id - Delete task
+router.delete('/:id', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) {
+      res.status(400).json({ error: 'Invalid task ID' });
+      return;
+    }
+
+    const existing = await prisma.task.findUnique({ where: { id } });
+    if (!existing) {
+      res.status(404).json({ error: 'Task not found' });
+      return;
+    }
+
+    await prisma.task.delete({ where: { id } });
+    res.status(204).send();
+  } catch (error) {
+    console.error('Error deleting task:', error);
+    res.status(500).json({ error: 'Failed to delete task' });
+  }
+});
+
+export default router;
