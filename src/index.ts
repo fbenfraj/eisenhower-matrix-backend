@@ -3,6 +3,7 @@ import express, { Request, Response } from 'express';
 import cors from 'cors';
 import { prisma } from './db';
 import taskRoutes from './routes/tasks';
+import aiRoutes from './routes/ai';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -20,6 +21,7 @@ app.get('/api/health', async (_req: Request, res: Response) => {
 });
 
 app.use('/api/tasks', taskRoutes);
+app.use('/api/ai', aiRoutes);
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
