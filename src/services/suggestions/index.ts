@@ -188,8 +188,7 @@ export async function getSuggestionsForUser(userId: number): Promise<SuggestedTa
         confidence: candidate.confidence,
         why: candidate.why,
         fingerprint: candidate.fingerprint,
-        relatedTaskIds: candidate.relatedTaskIds,
-        lastShownAt: now
+        relatedTaskIds: candidate.relatedTaskIds
       }
     })
   }
@@ -206,6 +205,15 @@ export async function getSuggestionsForUser(userId: number): Promise<SuggestedTa
     orderBy: { confidence: 'desc' },
     take: MAX_SUGGESTIONS_SHOWN
   })
+
+  for (const suggestion of suggestions) {
+    if (!suggestion.lastShownAt) {
+      await db.suggestedTask.update({
+        where: { id: suggestion.id },
+        data: { lastShownAt: now }
+      })
+    }
+  }
 
   return suggestions.map(toResponse)
 }

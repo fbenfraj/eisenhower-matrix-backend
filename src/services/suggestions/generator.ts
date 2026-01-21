@@ -7,6 +7,7 @@ const MIN_OCCURRENCES_FOR_SUGGESTION = 2
 const MIN_CONFIDENCE_THRESHOLD = 0.75
 const SIMILARITY_THRESHOLD = 0.6
 const LOOKBACK_DAYS = 180
+const MIN_INTERVAL_DAYS = 3
 
 function clusterSimilarTasks(
   tasks: { id: number; text: string; completedAt: Date | null }[]
@@ -147,6 +148,7 @@ export async function generateSuggestions(userId: number): Promise<SuggestionCan
 
   for (const cluster of clusters) {
     if (cluster.occurrences < MIN_OCCURRENCES_FOR_SUGGESTION) continue
+    if (cluster.averageIntervalDays < MIN_INTERVAL_DAYS) continue
     if (!isOverdue(cluster)) continue
 
     const representativeText = getMostRepresentativeText(cluster.texts)
