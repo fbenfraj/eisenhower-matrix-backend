@@ -27,13 +27,30 @@ enum Complexity {
   HARD
 }
 
+enum SuggestionSourceType {
+  S1_RECURRENCE
+  S2_FOLLOW_UP
+  S3_LATE_ADDITION
+  S4_DEPENDENCY
+  S5_MAINTENANCE
+}
+
+enum SuggestionStatus {
+  PENDING
+  ACCEPTED
+  SNOOZED
+  DISMISSED
+  NEVER
+}
+
 model User {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique @db.VarChar(255)
-  password  String   @db.VarChar(255)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  tasks     Task[]
+  id             Int             @id @default(autoincrement())
+  email          String          @unique @db.VarChar(255)
+  password       String          @db.VarChar(255)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  tasks          Task[]
+  suggestedTasks SuggestedTask[]
 }
 
 model Task {
@@ -55,4 +72,24 @@ model Task {
   @@index([quadrant])
   @@index([completed])
   @@index([userId])
+}
+
+model SuggestedTask {
+  id             Int                  @id @default(autoincrement())
+  userId         Int
+  suggestedText  String               @db.VarChar(500)
+  sourceType     SuggestionSourceType
+  confidence     Float
+  why            String               @db.VarChar(500)
+  status         SuggestionStatus     @default(PENDING)
+  fingerprint    String               @db.VarChar(64)
+  relatedTaskIds Int[]
+  snoozeUntil    DateTime?
+  lastShownAt    DateTime?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  user           User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@index([userId, fingerprint])
 }

@@ -5,6 +5,7 @@ import { prisma } from './db';
 import taskRoutes from './routes/tasks';
 import aiRoutes from './routes/ai';
 import authRoutes from './routes/auth';
+import suggestionRoutes from './routes/suggestions';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -24,6 +25,7 @@ app.get('/api/health', async (_req: Request, res: Response) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/ai', aiRoutes);
+app.use('/api/suggestions', suggestionRoutes);
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
