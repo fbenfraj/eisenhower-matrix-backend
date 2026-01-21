@@ -271,7 +271,6 @@ export async function snoozeSuggestion(
   await db.suggestedTask.update({
     where: { id: suggestionId },
     data: {
-      status: SuggestionStatus.SNOOZED,
       snoozeUntil
     }
   })
