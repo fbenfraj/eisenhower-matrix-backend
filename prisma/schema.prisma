@@ -44,13 +44,35 @@ enum SuggestionStatus {
 }
 
 model User {
-  id             Int             @id @default(autoincrement())
-  email          String          @unique @db.VarChar(255)
-  password       String          @db.VarChar(255)
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-  tasks          Task[]
-  suggestedTasks SuggestedTask[]
+  id                    Int                @id @default(autoincrement())
+  email                 String             @unique @db.VarChar(255)
+  password              String             @db.VarChar(255)
+  notificationsEnabled  Boolean            @default(false)
+  reminderTime          String             @default("09:00") @db.VarChar(5)
+  timezone              String             @default("Europe/Paris") @db.VarChar(50)
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+  tasks                 Task[]
+  suggestedTasks        SuggestedTask[]
+  pushSubscriptions     PushSubscription[]
+}
+
+model PushSubscription {
+  id            Int       @id @default(autoincrement())
+  userId        Int
+  endpoint      String    @db.Text
+  p256dh        String    @db.VarChar(255)
+  auth          String    @db.VarChar(255)
+  userAgent     String?   @db.VarChar(500)
+  createdAt     DateTime  @default(now())
+  lastSuccessAt DateTime?
+  lastFailureAt DateTime?
+  failureCount  Int       @default(0)
+  isActive      Boolean   @default(true)
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, endpoint])
+  @@index([userId, isActive])
 }
 
 model Task {
