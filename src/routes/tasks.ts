@@ -21,6 +21,8 @@ function toFrontendTask(task: Task) {
     complexity: task.complexity ? toFrontendComplexity(task.complexity) : null,
     showAfter: task.showAfter?.toISOString() ?? null,
     recurrence: task.recurrence,
+    xp: task.xp ?? null,
+    aiScores: task.aiScores ?? null,
     createdAt: task.createdAt.toISOString(),
     updatedAt: task.updatedAt.toISOString(),
   };
@@ -68,7 +70,7 @@ router.get('/:id', async (req, res: Response) => {
 router.post('/', async (req, res: Response) => {
   try {
     const { userId } = (req as AuthenticatedRequest).user;
-    const { text, description, deadline, quadrant, complexity, showAfter, recurrence } = req.body;
+    const { text, description, deadline, quadrant, complexity, showAfter, recurrence, xp, aiScores } = req.body;
 
     if (!text || typeof text !== 'string') {
       res.status(400).json({ error: 'Text is required' });
@@ -107,6 +109,8 @@ router.post('/', async (req, res: Response) => {
         complexity: dbComplexity,
         showAfter: showAfter ? new Date(showAfter) : null,
         recurrence: recurrence ?? null,
+        xp: xp ?? null,
+        aiScores: aiScores ?? null,
         userId,
       },
     });
@@ -136,6 +140,8 @@ router.put('/:id', async (req, res: Response) => {
     const { text, description, deadline, completed, completedAt, quadrant, complexity, showAfter, recurrence } = req.body;
 
     const updateData: Record<string, unknown> = {};
+    const wasNotCompleted = !existing.completed;
+    let isBeingCompleted = false;
 
     if (text !== undefined) {
       if (typeof text !== 'string') {
@@ -160,6 +166,7 @@ router.put('/:id', async (req, res: Response) => {
       } else if (!completed) {
         updateData.completedAt = null;
       }
+      isBeingCompleted = completed && wasNotCompleted;
     }
 
     if (completedAt !== undefined) {
@@ -201,7 +208,12 @@ router.put('/:id', async (req, res: Response) => {
       data: updateData,
     });
 
-    res.json(toFrontendTask(task));
+    const response = toFrontendTask(task);
+    if (isBeingCompleted && task.xp) {
+      res.json({ ...response, xpGained: task.xp });
+    } else {
+      res.json(response);
+    }
   } catch (error) {
     console.error('Error updating task:', error);
     res.status(500).json({ error: 'Failed to update task' });

@@ -48,7 +48,7 @@ router.post('/:id/accept', async (req, res: Response) => {
       return
     }
 
-    const { taskId } = await acceptSuggestion(userId, id, dbQuadrant)
+    const { taskId, xp } = await acceptSuggestion(userId, id, dbQuadrant)
 
     const task = await prisma.task.findUnique({ where: { id: taskId } })
     if (!task) {
@@ -69,9 +69,12 @@ router.post('/:id/accept', async (req, res: Response) => {
         complexity: task.complexity ? toFrontendComplexity(task.complexity) : null,
         showAfter: task.showAfter?.toISOString() ?? null,
         recurrence: task.recurrence,
+        xp: task.xp ?? null,
+        aiScores: task.aiScores ?? null,
         createdAt: task.createdAt.toISOString(),
         updatedAt: task.updatedAt.toISOString()
-      }
+      },
+      xp
     })
   } catch (error) {
     console.error('Error accepting suggestion:', error)

@@ -1,4 +1,5 @@
 import OpenAI from 'openai'
+import { AiScores, XpValue, validateAiScores, calculateXpFromScores, DEFAULT_AI_SCORES } from '../utils/xp'
 
 type Quadrant = 'urgent-important' | 'not-urgent-important' | 'urgent-not-important' | 'not-urgent-not-important'
 type Complexity = 'easy' | 'medium' | 'hard'
@@ -89,7 +90,10 @@ You must respond with ONLY a valid JSON object (no markdown, no explanation) wit
   "deadline": "YYYY-MM-DD format ONLY if user explicitly mentions a date/deadline, otherwise null",
   "quadrant": "one of: urgent-important, not-urgent-important, urgent-not-important, not-urgent-not-important",
   "recurrence": <recurrence pattern - see below>,
-  "complexity": "one of: easy, medium, hard"
+  "complexity": "one of: easy, medium, hard",
+  "futurePainScore": "float 0-1: how bad life gets if delayed (health=1.0, money=0.9, legal=0.9, admin=0.6, social=0.4, trivial=0.1)",
+  "urgencyScore": "float 0-1: time pressure (overdue=1.0, today=0.9, this_week=0.7, next_week=0.4, no_deadline=0.2)",
+  "frictionScore": "float 0-1: likelihood of avoidance (calling/paperwork=0.9, multi-step=0.7, simple=0.2)"
 }
 
 Quadrant rules:
@@ -149,6 +153,11 @@ Complexity rules:
 - "medium": Moderate effort (15 min - 2 hours), some planning needed
 - "hard": Significant effort (> 2 hours), complex, multiple steps, deep focus required
 
+XP Scoring rules - score practical obligations only, NOT generic self-improvement:
+- futurePainScore examples: dentist=0.9, taxes=0.85, reply to email=0.3, watch movie=0.1
+- urgencyScore: based on deadline proximity
+- frictionScore: tasks people avoid (phone calls, paperwork) get high scores
+
 IMPORTANT: Do NOT add a deadline unless the user explicitly mentions a specific date, time, or deadline. Recurring tasks do NOT automatically need a deadline - the recurrence pattern is sufficient.
 
 Date interpretation (only use these if user mentions a date):
@@ -167,6 +176,8 @@ export interface ParsedTask {
   quadrant: Quadrant
   recurrence: TaskRecurrence
   complexity: Complexity
+  aiScores: AiScores
+  xp: XpValue
 }
 
 export const parseTaskWithAI = async (input: string): Promise<ParsedTask> => {
@@ -190,11 +201,22 @@ export const parseTaskWithAI = async (input: string): Promise<ParsedTask> => {
     quadrant: Quadrant
     recurrence: TaskRecurrence | { interval: number; unit: string; weekDays?: number[]; monthDay?: number } | null
     complexity: Complexity
+    futurePainScore?: number
+    urgencyScore?: number
+    frictionScore?: number
   }
 
   const quadrant = VALID_QUADRANTS.includes(parsed.quadrant) ? parsed.quadrant : 'not-urgent-not-important'
   const recurrence = validateRecurrence(parsed.recurrence)
   const complexity = VALID_COMPLEXITIES.includes(parsed.complexity) ? parsed.complexity : 'medium'
+
+  const rawScores = {
+    futurePainScore: parsed.futurePainScore,
+    urgencyScore: parsed.urgencyScore,
+    frictionScore: parsed.frictionScore
+  }
+  const aiScores = validateAiScores(rawScores) ?? DEFAULT_AI_SCORES
+  const xp = calculateXpFromScores(aiScores)
 
   return {
     title: parsed.title.slice(0, 100),
@@ -202,7 +224,9 @@ export const parseTaskWithAI = async (input: string): Promise<ParsedTask> => {
     deadline: parsed.deadline || null,
     quadrant,
     recurrence,
-    complexity
+    complexity,
+    aiScores,
+    xp
   }
 }
 

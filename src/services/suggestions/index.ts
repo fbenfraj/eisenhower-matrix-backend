@@ -2,6 +2,7 @@ import { prisma } from '../../db'
 import { SuggestedTaskResponse, SuggestionStatus } from './types'
 import { generateSuggestions } from './generator'
 import { jaccardSimilarity } from './textSimilarity'
+import { parseTaskWithAI } from '../ai'
 
 type PrismaClient = typeof prisma & {
   suggestedTask: {
@@ -213,7 +214,7 @@ export async function acceptSuggestion(
   userId: number,
   suggestionId: number,
   quadrant: string
-): Promise<{ taskId: number }> {
+): Promise<{ taskId: number; xp: number | null }> {
   const suggestion = await db.suggestedTask.findFirst({
     where: { id: suggestionId, userId }
   })
@@ -222,12 +223,25 @@ export async function acceptSuggestion(
     throw new Error('Suggestion not found')
   }
 
+  let xp: number | null = null
+  let aiScores: { futurePainScore: number; urgencyScore: number; frictionScore: number } | undefined
+
+  try {
+    const parsed = await parseTaskWithAI(suggestion.suggestedText)
+    xp = parsed.xp
+    aiScores = parsed.aiScores
+  } catch {
+    // If AI parsing fails, continue without XP
+  }
+
   const task = await prisma.task.create({
     data: {
       userId,
       text: suggestion.suggestedText,
       quadrant: quadrant as 'URGENT_IMPORTANT' | 'NOT_URGENT_IMPORTANT' | 'URGENT_NOT_IMPORTANT' | 'NOT_URGENT_NOT_IMPORTANT',
-      completed: false
+      completed: false,
+      xp,
+      aiScores
     }
   })
 
@@ -236,7 +250,7 @@ export async function acceptSuggestion(
     data: { status: SuggestionStatus.ACCEPTED }
   })
 
-  return { taskId: task.id }
+  return { taskId: task.id, xp }
 }
 
 export async function snoozeSuggestion(
